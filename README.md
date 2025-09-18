@@ -1,2 +1,2 @@
-# xconn-go-ble
-WAMP over BLE extension for Go
+# XConn BLE
+WAMP-over-BLE extension for Go
