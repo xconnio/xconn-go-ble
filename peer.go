@@ -8,6 +8,8 @@ import (
 	"github.com/xconnio/xconn-go"
 )
 
+const MTU = 514
+
 type CentralPeer struct {
 	writer bluetooth.DeviceCharacteristic
 
@@ -17,7 +19,7 @@ type CentralPeer struct {
 
 func NewCentralPeer(reader, writer bluetooth.DeviceCharacteristic) (xconn.Peer, error) {
 	messageChan := make(chan []byte, 1)
-	assembler := NewMessageAssembler(20)
+	assembler := NewMessageAssembler(MTU)
 	err := reader.EnableNotifications(func(buf []byte) {
 		toSend := assembler.Feed(buf)
 		if toSend != nil {
@@ -66,7 +68,7 @@ type PeripheralPeer struct {
 }
 
 func NewPeripheralPeer(readerChan chan []byte, writer bluetooth.CharacteristicConfig) (xconn.Peer, error) {
-	assembler := NewMessageAssembler(20)
+	assembler := NewMessageAssembler(MTU)
 
 	return &PeripheralPeer{
 		writer:      writer,
@@ -84,7 +86,14 @@ func (p *PeripheralPeer) NetConn() net.Conn {
 }
 
 func (p *PeripheralPeer) Read() ([]byte, error) {
-	return <-p.messageChan, nil
+	for {
+		out := p.assembler.Feed(<-p.messageChan)
+		if out == nil {
+			continue
+		}
+
+		return out, nil
+	}
 }
 
 func (p *PeripheralPeer) Write(bytes []byte) error {
