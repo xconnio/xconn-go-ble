@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/xconnio/xconn-go"
-	xconnble "github.com/xconnio/xconn-go-ble"
+	"github.com/xconnio/xconn-go-ble"
 	"tinygo.org/x/bluetooth"
 )
 
@@ -40,6 +40,7 @@ func setupBLE() bleManager {
 		UUID: serviceUUID,
 	}
 
+	messageChan := make(chan []byte, 1)
 	var readerChar bluetooth.Characteristic
 	// central → peripheral
 	readerCharCfg := bluetooth.CharacteristicConfig{
@@ -47,7 +48,9 @@ func setupBLE() bleManager {
 		UUID:   rxUUID,
 		Flags: bluetooth.CharacteristicWritePermission |
 			bluetooth.CharacteristicWriteWithoutResponsePermission,
-		Value: []byte("hello world"),
+		WriteEvent: func(client bluetooth.Connection, offset int, value []byte) {
+			messageChan <- value
+		},
 	}
 
 	service.Characteristics = append(service.Characteristics, readerCharCfg)
@@ -78,7 +81,7 @@ func setupBLE() bleManager {
 
 			hasConnection = true
 
-			peer, err := xconnble.NewPeripheralPeer(readerCharCfg, writerCharCfg)
+			peer, err := xconnble.NewPeripheralPeer(messageChan, writerCharCfg)
 			if err != nil {
 				log.Fatalf("Failed to create peripheral connection: %v", err)
 			}
@@ -122,6 +125,14 @@ func main() {
 		select {
 		case conn := <-man.ConnChan:
 			fmt.Println("WE HAVE A CLIENT!", conn)
+			for {
+				data, err := conn.Read()
+				if err != nil {
+					break
+				}
+
+				fmt.Println(string(data))
+			}
 		}
 	}
 }

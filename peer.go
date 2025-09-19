@@ -65,19 +65,12 @@ type PeripheralPeer struct {
 	assembler   *MessageAssembler
 }
 
-func NewPeripheralPeer(reader, writer bluetooth.CharacteristicConfig) (xconn.Peer, error) {
-	messageChan := make(chan []byte, 1)
+func NewPeripheralPeer(readerChan chan []byte, writer bluetooth.CharacteristicConfig) (xconn.Peer, error) {
 	assembler := NewMessageAssembler(20)
-	reader.WriteEvent = func(client bluetooth.Connection, offset int, value []byte) {
-		toSend := assembler.Feed(value)
-		if toSend != nil {
-			messageChan <- toSend
-		}
-	}
 
 	return &PeripheralPeer{
 		writer:      writer,
-		messageChan: messageChan,
+		messageChan: readerChan,
 		assembler:   assembler,
 	}, nil
 }
