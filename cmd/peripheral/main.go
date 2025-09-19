@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/xconnio/wampproto-go/serializers"
 	"github.com/xconnio/xconn-go"
 	"github.com/xconnio/xconn-go-ble"
 	"tinygo.org/x/bluetooth"
@@ -121,17 +122,43 @@ func setupBLE() bleManager {
 
 func main() {
 	man := setupBLE()
+	router := xconn.NewRouter()
+	err := router.AddRealm("realm1")
+	if err != nil {
+		log.Fatalf("Failed to add realm: %v", err)
+	}
+
+	server := xconn.NewServer(router, nil, nil)
+	closer, err := server.ListenAndServeWebSocket("tcp", "0.0.0.0:8080")
+	if err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
+
+	defer closer.Close()
+
 	for {
 		select {
-		case conn := <-man.ConnChan:
-			fmt.Println("WE HAVE A CLIENT!", conn)
+		case peer := <-man.ConnChan:
+			fmt.Println("WE HAVE A CLIENT!", peer)
 			for {
-				data, err := conn.Read()
+				hello, err := xconn.ReadHello(peer, &serializers.CBORSerializer{})
 				if err != nil {
-					break
+					fmt.Println("failed to read hello", err)
+					continue
 				}
 
-				fmt.Println(string(data))
+				base, err := xconn.Accept(peer, hello, &serializers.CBORSerializer{}, nil)
+				if err != nil {
+					fmt.Println("failed to accept", err)
+					continue
+				}
+
+				if err = router.AttachClient(base); err != nil {
+					fmt.Println("failed to attach client", err)
+					continue
+				}
+
+				fmt.Println("Attached....")
 			}
 		}
 	}
