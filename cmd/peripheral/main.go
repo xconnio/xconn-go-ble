@@ -158,7 +158,15 @@ func main() {
 					continue
 				}
 
-				fmt.Println("Attached....")
+				msg, err := base.ReadMessage()
+				if err != nil {
+					fmt.Println("failed to read message", err)
+					continue
+				}
+
+				if err = router.ReceiveMessage(base, msg); err != nil {
+					fmt.Println("failed to receive message", err)
+				}
 			}
 		}
 	}
